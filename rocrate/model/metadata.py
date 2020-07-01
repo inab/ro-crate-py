@@ -15,17 +15,11 @@
 ## limitations under the License.
 
 import json
-import os
-import pkg_resources
-import warnings
-
-from typing import Dict
+import tempfile
 
 from ..utils import *
-
 from .file import File
 from .dataset import Dataset
-from .contextentity import ContextEntity
 
 """
 RO-Crate metadata file
@@ -34,35 +28,20 @@ This object holds the data of an RO Crate Metadata File rocrate_
 
 .. _rocrate: https://w3id.org/ro/crate/1.0
 """
+
 class Metadata(File):
     CONTEXT = "https://w3id.org/ro/crate/1.0/context"
     def __init__(self, crate):
-        #self._jsonld = self._empty()  ## bootstrap needed by the below!
-        #self.dest_path = 'ro-crate-metadata.jsonld'
         super().__init__(crate, None, "ro-crate-metadata.jsonld", None)
 
     def _empty(self):
         # default properties of the metadata entry
-        val = {
-                    "@id": "ro-crate-metadata.jsonld",
-                    "@type": "CreativeWork",
-                    "about": {"@id": "./"}
-                }
+        val = {"@id": "ro-crate-metadata.jsonld",
+               "@type": "CreativeWork",
+               "conformsTo": {"@id": "https://w3id.org/ro/crate/1.0"},
+               "about": {"@id": "./"}
+              }
         return val
-
-    # def _find_entity(self, identifier: str) -> Entity:
-        # print(self._jsonld.keys())
-        # for item in self._jsonld['@graph']:
-            # if item.get("@id", None) == identifier:
-                # return item
-
-    # def _add_entity(self, entity: Entity) -> Entity:
-        # ## TODO: Check/merge duplicates? Valid by JSON-LD, but 
-        # # we won't find the second entry again above
-        # self._jsonld["@graph"].append(entity)
-        # print('@graph keys are ', self._jsonld.keys())
-        # return entity # TODO: If we merged, return that instead here
-
 
     # Generate the crate's `ro-crate-metadata.jsonld`.
     # @return [String] The rendered JSON-LD as a "prettified" string.
@@ -72,19 +51,24 @@ class Metadata(File):
             graph.append(entity.properties())
         return {'@context': self.CONTEXT, '@graph': graph}
 
-    def write(self, dest_base):
+    def write(self, base_path):
         #writes itself in
-        write_path = self.filepath(dest_base)
+        write_path = self.filepath(base_path)
         as_jsonld = self.generate()
         with open(write_path, 'w') as outfile:
             json.dump(as_jsonld, outfile, indent=4, sort_keys=True, default=str)
 
-    """The dataset this is really about"""
-    about = ContextEntity(Dataset)
+    def write_zip(self, zip_out):
+        write_path = self.filepath()
+        as_jsonld = self.generate()
+        # with open(write_path, 'w') as outfile:
+        # TODO: fix this, there is no need to use a tmp file
+        tmpfile_path = tempfile.NamedTemporaryFile()
+        tmpfile = open(tmpfile_path.name, 'w')
+        json.dump(as_jsonld, tmpfile, indent=4, sort_keys=True, default=str)
+        tmpfile.close()
+        zip_out.write(tmpfile_path.name, write_path)
 
     @property
     def root(self) -> Dataset:
-        return self.about
-
-    #def as_jsonld(self) -> Dict:
-    #    return self._jsonld
+        return self.crate.root_dataset
