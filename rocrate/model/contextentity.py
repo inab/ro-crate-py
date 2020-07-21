@@ -14,6 +14,7 @@
 ## See the License for the specific language governing permissions and
 ## limitations under the License.
 
+from urllib.parse import urlparse
 import warnings
 
 from .. import vocabs
@@ -30,10 +31,15 @@ class ContextEntity(Entity):
     def format_id(self, identifier):
         if is_arcp_uri(identifier):
             return identifier
-        elif identifier.startswith('#'):
-            return identifier
         else:
-            return '#' + identifier
+            # check if it's an absolute URL
+            url = urlparse(identifier)
+            if all([url.scheme, url.netloc, url.path]):
+                return identifier
+            elif identifier.startswith('#'):
+                return identifier
+            else:
+                return '#' + identifier
 
     def getmany(self, instance):
         for json in as_list(instance.get(self.property)):
@@ -67,7 +73,7 @@ class ContextEntity(Entity):
     # def __set__(self, instance, value):
         # # TODO: Check if arrays are permitted
         # self.setmany(instance, as_list(value))
-        
+
     def __delete__(self, instance):
         ## TODO: Check if permitted to delete?
         instance[self.property] = [] # known property, empty in JSON

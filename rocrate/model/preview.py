@@ -32,8 +32,8 @@ This object holds a preview of an RO Crate in HTML format_
 .. _rocrate: https://w3id.org/ro/crate/1.0
 """
 class Preview(File):
-    def __init__(self, crate):
-        super().__init__(crate, None, "ro-crate-preview.html", None)
+    def __init__(self, crate, source = None):
+        super().__init__(crate, source, "ro-crate-preview.html", None)
 
     def _empty(self):
         # default properties of the metadata entry
@@ -54,7 +54,9 @@ class Preview(File):
         template.close()
         out_html = src.render(crate=info_dict)
         return out_html
-
+    
+    # TODO:should take into account the case if a readed preview file. in this case there is a source of it:
+    # no need to generate it, just copy the html and any files present in ro-crate-preview_files/ (if this dir exists)
     def write(self, dest_base):
         write_path = self.filepath(dest_base)
         out_html = self.generate_html()
@@ -64,9 +66,13 @@ class Preview(File):
     def write_zip(self, zip_out):
         write_path = self.filepath()
         out_html = self.generate_html()
-        tmpfile_path = tempfile.NamedTemporaryFile()
-        tmpfile = open(tmpfile_path.name, 'w')
+
+        tmpfile = tempfile.NamedTemporaryFile(mode='w', delete=False)
+        tmpfile_path = tmpfile.name
         tmpfile.write(out_html)
         tmpfile.close()
-        zip_out.write(tmpfile_path.name,write_path)
+        zip_out.write(tmpfile_path, write_path)
+        os.remove(tmpfile_path)
+        
+
 
