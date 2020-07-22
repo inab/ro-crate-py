@@ -35,6 +35,7 @@ setup(
   packages = find_packages(exclude=['contrib', 'docs', 'tests']),
   version = '0.1.0',
   description = 'RO-Crate metadata generator/parser',
+  long_description_content_type='text/markdown',
   long_description=long_description,
   author = 'Stian Soiland-Reyes',
   python_requires='>=3.6',
@@ -48,7 +49,7 @@ setup(
   test_suite='test',
   classifiers=[
     'Operating System :: OS Independent',
-    'Development Status :: 3 - Alpha'
+    'Development Status :: 3 - Alpha',
     'Intended Audience :: Developers',
     'Intended Audience :: Information Technology',
     'Topic :: Software Development :: Libraries',
