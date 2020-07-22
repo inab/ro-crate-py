@@ -15,7 +15,11 @@
 ## limitations under the License.
 
 __author__      = "Stian Soiland-Reyes <http://orcid.org/0000-0001-9842-9718>"
-__copyright__   = "Copyright 2019 The University of Manchester"
+__copyright__   = """© 2019-2020 The University of Manchester, UK
+© 2020 Vlaams Instituut voor Biotechnologie (VIB), DE
+© 2020 Barcelona Supercomputing Center (BSC), ES
+"""
+
 __license__     = "Apache License, version 2.0 (https://www.apache.org/licenses/LICENSE-2.0)"
 
 from setuptools import setup, find_packages
@@ -37,7 +41,7 @@ setup(
   description = 'RO-Crate metadata generator/parser',
   long_description_content_type='text/markdown',
   long_description=long_description,
-  author = 'Stian Soiland-Reyes',
+  author = 'Bert Droesbeke, Ignacio Eguinoa, Stian Soiland-Reyes, Laura Rodríguez Navas, Alban Gaignard',
   python_requires='>=3.6',
   author_email = 'stain@apache.org',
   package_data={'': ['data/*.jsonld','templates/*.j2']},
