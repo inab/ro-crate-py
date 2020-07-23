@@ -1,0 +1,63 @@
+{
+    "@context": "https://w3id.org/ro/crate/1.0/context",
+    "@graph": [
+        {
+            "@id": "ro-crate-metadata.jsonld",
+            "@type": "CreativeWork",
+            "about": {
+                "@id": "./"
+            },
+            "conformsTo": {
+                "@id": "https://w3id.org/ro/crate/1.0"
+            }
+        },
+        {
+            "@id": "ro-crate-preview.html",
+            "@type": "CreativeWork",
+            "about": {
+                "@id": "./"
+            }
+        },
+        {
+            "@id": "./",
+            "@type": "CreativeWork",
+            "about": {
+                "@id": "./"
+            },
+            "datePublished": "2020-07-23 13:42:33.543192",
+            "hasPart": [
+                {
+                    "@id": "test_wf_galaxy.ga"
+                },
+                {
+                    "@id": "abstract_wf.cwl"
+                },
+                {
+                    "@id": "test_file_galaxy.txt"
+                }
+            ],
+            "mainEntity": {
+                "@id": "test_wf_galaxy.ga"
+            }
+        },
+        {
+            "@id": "test_wf_galaxy.ga",
+            "@type": "File"
+        },
+        {
+            "@id": "abstract_wf.cwl",
+            "@type": [
+                "File",
+                "Workflow",
+                "SoftwareSourceCode"
+            ],
+            "programmingLanguage": {
+                "@id": "https://galaxyproject.org"
+            }
+        },
+        {
+            "@id": "test_file_galaxy.txt",
+            "@type": "File"
+        }
+    ]
+}
