@@ -274,6 +274,9 @@ class ROCrate():
         return (self.default_entities + self.data_entities +
                 self.contextual_entities)
 
+    def _get_main_entity(self):
+        return self.root_dataset['mainEntity']
+
     def set_main_entity(self, main_entity):
         self.root_dataset['mainEntity'] = main_entity
 
@@ -352,7 +355,9 @@ class ROCrate():
         Path(base_path).mkdir(parents=True, exist_ok=True)
         # write data entities
         for writable_entity in self.data_entities + self.default_entities:
-            writable_entity.write(base_path)
+            # TODO removed input files
+            if writable_entity.type != "File":
+                writable_entity.write(base_path)
 
     def write_zip(self, out_zip):
         if str(out_zip).endswith('.zip'):
