@@ -59,19 +59,25 @@ class ROCrate():
             self.default_entities.append(self.root_dataset)
         else:
             # find root entity
+            jsonld_filename = 'ro-crate-metadata.jsonld'
             if zipfile.is_zipfile(source_path):
                 # load from zip
-                pass
-            else:
-                # load from dir
-                metadata_path = os.path.join(
-                    source_path, 'ro-crate-metadata.jsonld'
-                )
-                if not os.path.isfile(metadata_path):
-                    raise ValueError('The directory is not a valid RO-crate')
-                entities = self.entities_from_metadata(metadata_path)
-                self.build_crate(entities, source_path, load_preview)
-                # TODO: load root dataset properties
+                print("loaded from zip")
+                zip_path = os.path.dirname(source_path)
+                with zipfile.ZipFile(source_path, "r") as zip_file:
+                    zip_file.extractall(zip_path)
+                source_path = zip_path
+
+            # load from dir
+            metadata_path = os.path.join(
+                source_path, jsonld_filename
+            )
+            print("loaded from zip")
+            if not os.path.isfile(metadata_path):
+                raise ValueError('The directory is not a valid RO-crate')
+            entities = self.entities_from_metadata(metadata_path)
+            self.build_crate(entities, source_path, load_preview)
+            # TODO: load root dataset properties
 
     def entities_from_metadata(self, metadata_path):
         # Creates a dictionary {id: entity} from the metadata file
