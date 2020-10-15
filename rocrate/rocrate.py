@@ -62,7 +62,6 @@ class ROCrate():
             jsonld_filename = 'ro-crate-metadata.jsonld'
             if zipfile.is_zipfile(source_path):
                 # load from zip
-                print("loaded from zip")
                 zip_path = os.path.dirname(source_path)
                 with zipfile.ZipFile(source_path, "r") as zip_file:
                     zip_file.extractall(zip_path)
@@ -72,7 +71,6 @@ class ROCrate():
             metadata_path = os.path.join(
                 source_path, jsonld_filename
             )
-            print("loaded from zip")
             if not os.path.isfile(metadata_path):
                 raise ValueError('The directory is not a valid RO-crate')
             entities = self.entities_from_metadata(metadata_path)
