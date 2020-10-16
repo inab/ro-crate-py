@@ -377,7 +377,13 @@ class ROCrate():
         Path(base_path).mkdir(parents=True, exist_ok=True)
         # write data entities
         for writable_entity in self.data_entities + self.default_entities:
-            # TODO removed input files
+            writable_entity.write(base_path)
+
+    # write crate to local dir without input files
+    def write_crate_entities(self, base_path):
+        Path(base_path).mkdir(parents=True, exist_ok=True)
+        # write data entities
+        for writable_entity in self.data_entities + self.default_entities:
             if writable_entity.type != "File":
                 writable_entity.write(base_path)
 
