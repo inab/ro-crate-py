@@ -13,10 +13,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import atexit
 import importlib
 import json
 import os
+import shutil
+import tempfile
 import uuid
 import requests
 import zipfile
@@ -30,7 +32,6 @@ from .model.person import Person
 from .model.dataset import Dataset
 from .model.metadata import Metadata
 from .model.preview import Preview
-
 
 from arcp import generate
 
@@ -62,7 +63,8 @@ class ROCrate():
             jsonld_filename = 'ro-crate-metadata.jsonld'
             if zipfile.is_zipfile(source_path):
                 # load from zip
-                zip_path = os.path.dirname(source_path)
+                zip_path = tempfile.mkdtemp(prefix="ro", suffix="crate")
+                atexit.register(shutil.rmtree, zip_path)
                 with zipfile.ZipFile(source_path, "r") as zip_file:
                     zip_file.extractall(zip_path)
                 source_path = zip_path
@@ -166,8 +168,8 @@ class ROCrate():
                 # contextual entities should not have @type array
                 # (see https://github.com/ResearchObject/ro-crate/issues/83)
                 if entity['@type'] in [
-                        cls.__name__
-                        for cls in contextentity.ContextEntity.__subclasses__()
+                    cls.__name__
+                    for cls in contextentity.ContextEntity.__subclasses__()
                 ]:
                     module_name = 'rocrate.model.' + entity['@type'].lower()
                     SubClass = getattr(
@@ -298,7 +300,7 @@ class ROCrate():
     def add_file(self, source, crate_path=None, fetch_remote=False,
                  properties={}, **kwargs):
         props = dict(properties)
-        props.update(kwargs) 
+        props.update(kwargs)
         file_entity = File(self, source, crate_path, fetch_remote, properties)
         self._add_data_entity(file_entity)
         return file_entity
@@ -343,7 +345,7 @@ class ROCrate():
 
     # TODO
     # def fetch_all(self):
-        # fetch all files defined in the crate
+    # fetch all files defined in the crate
 
     def get_info(self):
         # return dictionary with basic info to build a preview file
