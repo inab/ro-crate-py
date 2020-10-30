@@ -31,17 +31,19 @@ This object holds a preview of an RO Crate in HTML format_
 
 .. _rocrate: https://w3id.org/ro/crate/1.1
 """
+
+
 class Preview(File):
-    def __init__(self, crate, source = None):
+    def __init__(self, crate, source=None):
         super().__init__(crate, source, "ro-crate-preview.html", None)
 
     def _empty(self):
         # default properties of the metadata entry
         val = {
-                    "@id": "ro-crate-preview.html",
-                    "@type": "CreativeWork",
-                    "about": {"@id": "./"}
-                }
+            "@id": "ro-crate-preview.html",
+            "@type": "CreativeWork",
+            "about": {"@id": "./"}
+        }
         return val
 
     def generate_html(self):
@@ -49,12 +51,12 @@ class Preview(File):
         # print(info_dict['name'])
         # print(info_dict['creator'])
         base_path = os.path.abspath(os.path.dirname(__file__))
-        template = open(os.path.join(base_path,'..' ,'templates', 'preview_template.html.j2'))
+        template = open(os.path.join(base_path, '..', 'templates', 'preview_template.html.j2'))
         src = Template(template.read())
         template.close()
         out_html = src.render(crate=info_dict)
         return out_html
-    
+
     # TODO:should take into account the case if a readed preview file. in this case there is a source of it:
     # no need to generate it, just copy the html and any files present in ro-crate-preview_files/ (if this dir exists)
     def write(self, dest_base):
@@ -73,6 +75,3 @@ class Preview(File):
         tmpfile.close()
         zip_out.write(tmpfile_path, write_path)
         os.remove(tmpfile_path)
-        
-
-

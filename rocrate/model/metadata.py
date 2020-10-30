@@ -30,8 +30,10 @@ This object holds the data of an RO Crate Metadata File rocrate_
 .. _rocrate: https://w3id.org/ro/crate/1.1
 """
 
+
 class Metadata(File):
     CONTEXT = "https://w3id.org/ro/crate/1.1/context"
+
     def __init__(self, crate):
         super().__init__(crate, None, "ro-crate-metadata.json", False, None)
 
@@ -41,7 +43,7 @@ class Metadata(File):
                "@type": "CreativeWork",
                "conformsTo": {"@id": "https://w3id.org/ro/crate/1.1"},
                "about": {"@id": "./"}
-              }
+               }
         return val
 
     # Generate the crate's `ro-crate-metadata.json`.
@@ -53,7 +55,7 @@ class Metadata(File):
         return {'@context': self.CONTEXT, '@graph': graph}
 
     def write(self, base_path):
-        #writes itself in
+        # writes itself in
         write_path = self.filepath(base_path)
         as_jsonld = self.generate()
         with open(write_path, 'w') as outfile:
