@@ -29,7 +29,7 @@ class TestWrite(BaseTest):
 
         crate.write_crate(out_path)
 
-        metadata_path = out_path / 'ro-crate-metadata.jsonld'
+        metadata_path = out_path / 'ro-crate-metadata.json'
         self.assertTrue(metadata_path.exists())
 
         preview_path = out_path / 'ro-crate-preview.html'
@@ -54,7 +54,7 @@ class TestWrite(BaseTest):
         crate.name = 'Test crate'
         crate.write_crate(out_path)
 
-        metadata_path = out_path / 'ro-crate-metadata.jsonld'
+        metadata_path = out_path / 'ro-crate-metadata.json'
         self.assertTrue(metadata_path.exists())
 
         preview_path = out_path / 'ro-crate-preview.html'
@@ -76,7 +76,7 @@ class TestWrite(BaseTest):
 
         crate.write_crate(out_path)
 
-        metadata_path = out_path / 'ro-crate-metadata.jsonld'
+        metadata_path = out_path / 'ro-crate-metadata.json'
         self.assertTrue(metadata_path.exists())
 
         file1 = out_path / 'sample_file.txt'

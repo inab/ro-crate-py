@@ -1,24 +1,22 @@
 #!/usr/bin/env python
 
-# Copyright 2019-2020 The University of Manchester, UK
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-import atexit
+## Copyright 2019-2020 The University of Manchester, UK
+##
+## Licensed under the Apache License, Version 2.0 (the "License");
+## you may not use this file except in compliance with the License.
+## You may obtain a copy of the License at
+##
+##     http://www.apache.org/licenses/LICENSE-2.0
+##
+## Unless required by applicable law or agreed to in writing, software
+## distributed under the License is distributed on an "AS IS" BASIS,
+## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+## See the License for the specific language governing permissions and
+## limitations under the License.
+
 import importlib
 import json
 import os
-import shutil
-import tempfile
 import uuid
 import requests
 import zipfile
@@ -33,57 +31,50 @@ from .model.dataset import Dataset
 from .model.metadata import Metadata
 from .model.preview import Preview
 
-from arcp import generate
 
+from arcp import generate
+from arcp import arcp_random
 
 class ROCrate():
 
-    def __init__(self, source_path=None, load_preview=False):
+    def __init__(self, source_path = None, load_preview = False):
         self.default_entities = []
         self.data_entities = []
         self.contextual_entities = []
-        # TODO: add this as @base in the context? At least when loading
-        # from zip
-        self.uuid = uuid.uuid4()
-        # metadata init already includes itself into the root metadata
-        self.metadata = Metadata(self)
+        self.uuid = uuid.uuid4()  # TODO: add this as @base in the context? at least for cases where I'm loading from zip
+        self.metadata = Metadata(self)  # metadata init already includes itself into the root metadata
         self.default_entities.append(self.metadata)
 
-        # TODO: default_properties must include name, description,
-        # datePublished, license
+        # TODO: default_properties must inclue name, description, datePublished, license
         if not source_path or not load_preview:
-            # create preview entity and add it to default_entities
+            #create preview entity and add it to default_entities
             self.preview = Preview(self)
             self.default_entities.append(self.preview)
         if not source_path:
             self.root_dataset = RootDataset(self)
             self.default_entities.append(self.root_dataset)
         else:
-            # find root entity
-            jsonld_filename = 'ro-crate-metadata.jsonld'
+            #find root entity
             if zipfile.is_zipfile(source_path):
                 # load from zip
-                zip_path = tempfile.mkdtemp(prefix="ro", suffix="crate")
-                atexit.register(shutil.rmtree, zip_path)
-                with zipfile.ZipFile(source_path, "r") as zip_file:
-                    zip_file.extractall(zip_path)
-                source_path = zip_path
-
-            # load from dir
-            metadata_path = os.path.join(
-                source_path, jsonld_filename
-            )
-            if not os.path.isfile(metadata_path):
-                raise ValueError('The directory is not a valid RO-crate')
-            entities = self.entities_from_metadata(metadata_path)
-            self.build_crate(entities, source_path, load_preview)
-            # TODO: load root dataset properties
+                pass
+            else: 
+                # Try first *.json then *jsonld variant
+                # https://www.researchobject.org/ro-crate/1.1-DRAFT/#ro-crate-metadata-file-ro-crate-metadatajson
+                metadata_path = os.path.join(source_path,'ro-crate-metadata.json')
+                if not os.path.isfile(metadata_path): 
+                    metadata_path = os.path.join(source_path,'ro-crate-metadata.jsonld')
+                if not os.path.isfile(metadata_path):
+                    raise ValueError('The directory is not a valid RO-crate, missing ro-crate-metadata.json')
+                entities = self.entities_from_metadata(metadata_path)
+                self.build_crate(entities, source_path,load_preview)
+                ## TODO: load root dataset properties 
 
     def entities_from_metadata(self, metadata_path):
         # Creates a dictionary {id: entity} from the metadata file
         with open(metadata_path) as metadata_file:
             metadata_jsonld = json.load(metadata_file)
-        # TODO: should validate the json-ld
+        ### TODO: should validate the json-ld
         if '@graph' in metadata_jsonld.keys():
             entities_dict = {}
             for entity in metadata_jsonld['@graph']:
@@ -93,14 +84,51 @@ class ROCrate():
         else:
             raise ValueError('The metadata file has no @graph')
 
+    def find_root_entity_id(self, entities):
+        """Find Metadata file and Root Data Entity in RO-Crate.        
+
+        Returns a tuple of the @id identifiers (metadata, root)
+        """
+        # Note that for all cases below we will deliberately 
+        # throw KeyError if "about" exists but it has no "@id"
+
+        # First let's try conformsTo algorithm in
+        # <https://www.researchobject.org/ro-crate/1.0/#core-metadata-for-the-root-data-entity>
+        for entity in entities.values():
+            conformsTo = entity.get("conformsTo")
+            if conformsTo and "@id" in conformsTo:
+                conformsTo = conformsTo["@id"]            
+            if conformsTo and conformsTo.startswith("https://w3id.org/ro/crate/"):
+                if "about" in entity:
+                    return (entity["@id"], entity["about"]["@id"])
+        # ..fall back to a generous look up by filename, 
+        for candidate in (
+                # RO-Crate 1.1 (*.json) first
+                "ro-crate-metadata.json", "ro-crate-metadata.jsonld", 
+                # .. and the unstandard ./ forms later
+                "./ro-crate-metadata.json", "./ro-crate-metadata.jsonld"):
+            metadata_file = entities.get(candidate)
+            if metadata_file and "about" in metadata_file:
+                return (metadata_file["@id"], metadata_file["about"]["@id"])
+        # No luck! Is there perhaps a root dataset directly in here?
+        root = entities.get("./", {})
+        # FIXME: below will work both for 
+        # "@type": "Dataset"
+        # "@type": ["Dataset"]
+        # ..but also the unlikely 
+        # "@type": "DatasetSomething"
+        if root and "Dataset" in root.get("@type", []):
+            return (None, "./")
+        # Uh oh..
+        raise KeyError("Can't find Root Data Entity in RO-Crate, see https://w3id.org/ro/crate/1.0#core-metadata-for-the-root-data-entity")
+
     def build_crate(self, entities, source, load_preview):
         # add data and contextual entities to the crate
-        root_id = entities['ro-crate-metadata.jsonld']['about']['@id']
+        (metadata_id, root_id) = self.find_root_entity_id(entities)
         root_entity = entities[root_id]
         root_entity_parts = root_entity['hasPart']
 
-        # remove hasPart and id from root_entity and add the rest of the
-        # properties to the build
+        # remove hasPart and id from root_entity and add the rest of the properties to the build
         root_entity.pop('@id', None)
         root_entity.pop('hasPart', None)
         self.root_dataset = RootDataset(self, root_entity)
@@ -108,7 +136,7 @@ class ROCrate():
 
         # check if a preview is present
         if 'ro-crate-preview.html' in entities.keys() and load_preview:
-            preview_source = os.path.join(source, 'ro-crate-preview.html')
+            preview_source = os.path.join(source,'ro-crate-preview.html')
             self.preview = Preview(self, preview_source)
             self.default_entities.append(self.preview)
 
@@ -120,77 +148,61 @@ class ROCrate():
             entity = entities[data_entity_id]
             # basic checks should be moved to a separate function
             if '@type' not in entity.keys():
-                raise Exception("Entity with @id:" + data_entity_id +
-                                " has no type defined")
+                raise Exception("Entity with @id:" + data_entity_id + " has no type defined")
 
-            # Data entities can have an array as @type. So far we just parse
-            # them as File class if File is in the list. For further
-            # extensions (e.g if a Workflow class is created) we can add extra
-            # cases or create a mapping table for specific combinations. See
-            # https://github.com/ResearchObject/ro-crate/issues/83
-            entity_types = (entity['@type']
-                            if isinstance(entity['@type'], list)
-                            else [entity['@type']])
+            # Data entities can have an array as @type
+            # so far I just parse them as File class if File is in the list
+            # for further extensions (e.g if a class Workflow is created) I can add extra cases or create a mapping table for specific combinations
+            # see https://github.com/ResearchObject/ro-crate/issues/83
+            entity_types = entity['@type'] if isinstance(entity['@type'], list) else [entity['@type']]
             if 'File' in entity_types:
-                file_path = os.path.join(source, entity['@id'])
+                file_path = os.path.join(source,entity['@id'])
+                # print(file_path)
+                # print(entity)
                 identifier = entity.pop('@id', None)
+                # print(entity)
                 if os.path.exists(file_path):
                     # referencing a file path relative to crate-root
                     instance = File(self, file_path, identifier, entity)
                 else:
                     # check if it is a valid absolute URI
                     try:
-                        requests.get(identifier)
+                        response = requests.get(identifier)
                         instance = File(self, identifier, properties=entity)
-                    except requests.ConnectionError:
+                    except requests.ConnectionError as exception:
                         print("Source is not a valid URI")
             if 'Dataset' in entity_types:
-                dir_path = os.path.join(source, entity['@id'])
+                dir_path = os.path.join(source,entity['@id'])
                 if os.path.exists(dir_path):
-                    instance = Dataset(
-                        self, dir_path, entity['@id'], entity.pop('@id', None)
-                    )
+                    instance = Dataset(self, dir_path, entity['@id'], entity.pop('@id', None))
                 else:
                     raise Exception('Directory not found')
             self._add_data_entity(instance)
             added_entities.append(data_entity_id)
 
         # the rest of the entities must be contextual entities
-        prebuilt_entities = [
-            './', 'ro-crate-metadata.jsonld', 'ro-crate-preview.html'
-        ]
-        # also, filter out the entity with id=ro-crate-metadata.jsonld and the
-        # root dataset: can assume id='./' or '.'
+        prebuilt_entities = [root_id, metadata_id, 'ro-crate-preview.html']  # also, filter out the entity with id= ro-crate-metadata.jsonld   and the root dataset: can assume id='./' or '.'
         for identifier, entity in entities.items():
             if identifier not in added_entities + prebuilt_entities:
-                # should this be done in the extract entities?
-                entity.pop('@id', None)
-                # contextual entities should not have @type array
-                # (see https://github.com/ResearchObject/ro-crate/issues/83)
-                if entity['@type'] in [
-                    cls.__name__
-                    for cls in contextentity.ContextEntity.__subclasses__()
-                ]:
+                entity.pop('@id',None)  #this should be done in the extract entities?
+                # contextual entities should not have @type array (see https://github.com/ResearchObject/ro-crate/issues/83)
+                if entity['@type'] in [cls.__name__ for cls in contextentity.ContextEntity.__subclasses__()]:
                     module_name = 'rocrate.model.' + entity['@type'].lower()
-                    SubClass = getattr(
-                        importlib.import_module(module_name, package=None),
-                        entity['@type']
-                    )
+                    SubClass = getattr(importlib.import_module(module_name, package=None), entity['@type'])
                     instance = SubClass(self, identifier, entity)
                 else:
-                    instance = contextentity.ContextEntity(
-                        self, identifier, entity
-                    )
+                    instance = contextentity.ContextEntity(self, identifier, entity)
                 self._add_context_entity(instance)
 
-    # TODO: add contextual entities
+
+    #TODO: add contextual entities
     # def add_contact_point(id, properties = {})
     # def add_organization(id, properties = {})
 
-    # add properties: name datePublished author license identifier
-    # distribution contactPoint publisher funder description url hasPart.
-    # publisher should be an Organization though it MAY be a Person. funder
-    # should reference an Organization
+    # add properties:
+    # name datePublished author license identifier distribution contactPoint publisher funder description url hasPart]
+    # publisher should be an Organization though it MAY be a Person.
+    # funder should reference an Organization
 
     @property
     def name(self):
@@ -250,14 +262,6 @@ class ROCrate():
         self.root_dataset['publisher'] = value
 
     @property
-    def isBasedOn(self):
-        return self.root_dataset['isBasedOn']
-
-    @isBasedOn.setter
-    def isBasedOn(self, value):
-        self.root_dataset['isBasedOn'] = value
-
-    @property
     def image(self):
         return self.root_dataset['image']
 
@@ -277,11 +281,7 @@ class ROCrate():
         return generate.arcp_random(relative_id.strip('./'), uuid=self.uuid)
 
     def get_entities(self):
-        return (self.default_entities + self.data_entities +
-                self.contextual_entities)
-
-    def _get_main_entity(self):
-        return self.root_dataset['mainEntity']
+        return self.default_entities + self.data_entities + self.contextual_entities
 
     def set_main_entity(self, main_entity):
         self.root_dataset['mainEntity'] = main_entity
@@ -297,26 +297,21 @@ class ROCrate():
         return None
 
     # source: file object or path (str)
-    def add_file(self, source, crate_path=None, fetch_remote=False,
-                 properties={}, **kwargs):
-        props = dict(properties)
-        props.update(kwargs)
-        file_entity = File(self, source, crate_path, fetch_remote, properties)
+    def add_file(self, source, crate_path = None , fetch_remote = False, properties = None):
+        file_entity = File(self, source,crate_path,fetch_remote, properties)
         self._add_data_entity(file_entity)
         return file_entity
 
-    def remove_file(self, file_id):
-        # if file in data_entities:
+    def remove_file(self,file_id):
+        #if file in data_entities:
         self._remove_data_entity(file_id)
 
-    def add_directory(self, source, crate_path=None, properties={}, **kwargs):
-        props = dict(properties)
-        props.update(kwargs)
-        dataset_entity = Dataset(self, source, crate_path, properties)
+    def add_directory(self, source, crate_path = None , properties = None):
+        dataset_entity = Dataset(self,source,crate_path,properties)
         self._add_data_entity(dataset_entity)
 
-    def remove_directory(self, dir_id):
-        # if file in data_entities:
+    def remove_directory(self,dir_id):
+        #if file in data_entities:
         self._remove_data_entity(dir_id)
 
     def _add_data_entity(self, data_entity):
@@ -327,28 +322,31 @@ class ROCrate():
         if data_entity in self.data_entities:
             self.data_entities.remove(data_entity)
 
+
+
     ################################
-    #     Contextual entities      #
+    ##### Contextual entities ######
     ################################
 
     def _add_context_entity(self, entity):
-        if entity in self.contextual_entities:
-            self.contextual_entities.remove(entity)
+        if entity in self.contextual_entities: self.contextual_entities.remove(entity)
         self.contextual_entities.append(entity)
 
-    def add_person(self, identifier=None, properties={}, **kwargs):
-        props = dict(properties)
-        props.update(kwargs)
-        new_person = Person(self, identifier, props)
+    def add_person(self, identifier, properties = {}):
+        new_person = Person(self, identifier,properties)
         self._add_context_entity(new_person)
         return new_person
 
-    # TODO
-    # def fetch_all(self):
-    # fetch all files defined in the crate
+    #TODO
+    #def fetch_all(self):
+        # fetch all files defined in the crate
+
+    ################################
+    #####  ######
+    ################################
 
     def get_info(self):
-        # return dictionary with basic info to build a preview file
+        #return dictionary with basic info to build a preview file
         info_dict = {
             'name': self.name,
             'creator': self.creator,
@@ -363,24 +361,16 @@ class ROCrate():
         for writable_entity in self.data_entities + self.default_entities:
             writable_entity.write(base_path)
 
-    # write crate to local dir without input files
-    def write_crate_entities(self, base_path):
-        Path(base_path).mkdir(parents=True, exist_ok=True)
-        # write data entities
-        for writable_entity in self.data_entities + self.default_entities:
-            if writable_entity.type != "File":
-                writable_entity.write(base_path)
-
-    def write_zip(self, out_zip):
+    def write_zip(self,out_zip):
         if str(out_zip).endswith('.zip'):
             out_file_path = out_zip
         else:
             out_file_path = out_zip + '.zip'
-        zf = zipfile.ZipFile(
-            out_file_path, 'w', compression=zipfile.ZIP_DEFLATED,
-            allowZip64=True
-        )
+        zf = zipfile.ZipFile(out_file_path, 'w', compression=zipfile.ZIP_DEFLATED, allowZip64=True)
         for writable_entity in self.data_entities + self.default_entities:
             writable_entity.write_zip(zf)
         zf.close()
         return zf.filename
+
+
+
