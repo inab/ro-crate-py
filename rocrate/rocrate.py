@@ -338,8 +338,10 @@ class ROCrate():
         if entity in self.contextual_entities: self.contextual_entities.remove(entity)
         self.contextual_entities.append(entity)
 
-    def add_person(self, identifier, properties={}):
-        new_person = Person(self, identifier, properties)
+    def add_person(self, identifier=None, properties={}, **kwargs):
+        props = dict(properties)
+        props.update(kwargs)
+        new_person = Person(self, identifier, props)
         self._add_context_entity(new_person)
         return new_person
 
