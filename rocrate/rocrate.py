@@ -19,6 +19,7 @@ import json
 import os
 import shutil
 import tempfile
+import atexit
 import uuid
 import requests
 import zipfile
