@@ -1,39 +1,35 @@
 #!/usr/bin/env python
 
-## Copyright 2019-2020 The University of Manchester, UK
-##
-## Licensed under the Apache License, Version 2.0 (the "License");
-## you may not use this file except in compliance with the License.
-## You may obtain a copy of the License at
-##
-##     http://www.apache.org/licenses/LICENSE-2.0
-##
-## Unless required by applicable law or agreed to in writing, software
-## distributed under the License is distributed on an "AS IS" BASIS,
-## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-## See the License for the specific language governing permissions and
-## limitations under the License.
+# Copyright 2019-2020 The University of Manchester, UK
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import os
-
-from typing import Dict
-from ..utils import *
 import tempfile
 
 from jinja2 import Template
-
 from .file import File
-
-"""
-RO-Crate preview file
-
-This object holds a preview of an RO Crate in HTML format_
-
-.. _rocrate: https://w3id.org/ro/crate/1.1
-"""
 
 
 class Preview(File):
+    """
+    RO-Crate preview file
+    
+    This object holds a preview of an RO Crate in HTML format_
+    
+    .. _rocrate: https://w3id.org/ro/crate/1.0
+    """
+
     def __init__(self, crate, source=None):
         super().__init__(crate, source, "ro-crate-preview.html", None)
 
@@ -47,23 +43,53 @@ class Preview(File):
         return val
 
     def generate_html(self):
-        info_dict = self.crate.get_info()
-        # print(info_dict['name'])
-        # print(info_dict['creator'])
         base_path = os.path.abspath(os.path.dirname(__file__))
-        template = open(os.path.join(base_path, '..', 'templates', 'preview_template.html.j2'))
+        template = open(os.path.join(base_path,'..' ,'templates', 'preview_template.html.j2'))
         src = Template(template.read())
+
+        def template_function(func):
+            src.globals[func.__name__] = func
+            return func
+        
+        @template_function
+        def stringify(a):
+            if type(a) is list:
+                return ', '.join(a)
+            elif type(a) is str:
+                return a
+            else:
+                if a._jsonld and a._jsonld['name']:
+                    return  a._jsonld['name']
+                else:
+                    return a
+
+        @template_function
+        def is_object_list(a):
+            if type(a) is list:
+                for obj in a:
+                    if obj is not str:
+                        return True
+            else:
+                return False
+
         template.close()
-        out_html = src.render(crate=info_dict)
+        context_entities = []
+        data_entities = []
+        for entity in self.crate.contextual_entities:
+            context_entities.append(entity._jsonld)
+        for entity in self.crate.data_entities:
+            data_entities.append(entity._jsonld)
+        out_html = src.render(crate=self.crate, context=context_entities, data=data_entities)
         return out_html
 
-    # TODO:should take into account the case if a readed preview file. in this case there is a source of it:
-    # no need to generate it, just copy the html and any files present in ro-crate-preview_files/ (if this dir exists)
     def write(self, dest_base):
-        write_path = self.filepath(dest_base)
-        out_html = self.generate_html()
-        with open(write_path, 'w') as outfile:
-            outfile.write(out_html)
+        if self.source:
+            super().write(dest_base)
+        else:
+            write_path = self.filepath(dest_base)
+            out_html = self.generate_html()
+            with open(write_path, 'w') as outfile:
+                outfile.write(out_html)
 
     def write_zip(self, zip_out):
         write_path = self.filepath()
