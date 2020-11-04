@@ -21,40 +21,47 @@
         {
             "@id": "./",
             "@type": "Dataset",
-            "datePublished": "2020-07-23 20:57:26.306242",
+            "datePublished": "2020-10-22 12:37:49.382597",
             "hasPart": [
                 {
-                    "@id": "test_wf_galaxy.ga"
+                    "@id": "basic_example.cwl"
                 },
                 {
-                    "@id": "abstract_wf.cwl"
+                    "@id": "NA12878.bam"
                 },
                 {
-                    "@id": "test_file_galaxy.txt"
+                    "@id": "hg38.fa"
                 }
             ],
             "mainEntity": {
-                "@id": "test_wf_galaxy.ga"
+                "@id": "basic_example.cwl"
             }
         },
         {
-            "@id": "test_wf_galaxy.ga",
-            "@type": "File"
-        },
-        {
-            "@id": "abstract_wf.cwl",
+            "@id": "basic_example.cwl",
             "@type": [
                 "File",
                 "Workflow",
                 "SoftwareSourceCode"
             ],
             "programmingLanguage": {
-                "@id": "https://galaxyproject.org"
+                "@id": "#cwl"
             }
         },
         {
-            "@id": "test_file_galaxy.txt",
+            "@id": "NA12878.bam",
             "@type": "File"
+        },
+        {
+            "@id": "hg38.fa",
+            "@type": "File"
+        },
+        {
+            "@id": "#cwl",
+            "@type": "ComputerLanguage",
+            "alternateName": "CWL",
+            "identifier": "https://w3id.org/cwl/v1.0/",
+            "url": "https://www.commonwl.org/v1.1/"
         }
     ]
 }

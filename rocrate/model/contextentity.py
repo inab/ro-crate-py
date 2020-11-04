@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ssl
-
 from urllib.parse import urlparse
 
 from .. import vocabs
@@ -23,9 +21,6 @@ from ..utils import as_list
 
 from .entity import Entity
 from arcp import is_arcp_uri
-
-# change only for OSX
-ssl._create_default_https_context = ssl._create_unverified_context
 
 """
 A property class that can be used during class declaration

@@ -70,13 +70,12 @@ def make_workflow_rocrate(workflow_path, wf_type, include_files=[],
     if wf_type == 'CWL':
         programming_language_entity = entity.Entity(
             wf_crate,
-            # 'https://www.commonwl.org/v1.1/',
-            '#cwl',
+            'https://www.commonwl.org/v1.1/',
             properties={
-                "@type": "ComputerLanguage",
-                'alternateName': 'CWL',
-                'identifier': "https://w3id.org/cwl/v1.0/",
-                'url': 'https://www.commonwl.org/v1.1/'
+                "@type": ["ComputerLanguage", "SoftwareApplication"],
+                'name': 'CWL',
+                'url': 'https://www.commonwl.org/v1.1/',
+                'version': '1.1'
             }
         )
     if wf_type == 'Galaxy':
@@ -92,7 +91,7 @@ def make_workflow_rocrate(workflow_path, wf_type, include_files=[],
                     cwl_abstract_out.name,
                     'abstract_wf.cwl',
                     properties={
-                        "@type": ["File", "SoftwareSourceCode", "Workflow"]
+                        "@type": ["File", "SoftwareSourceCode", "ComputationalWorkflow"]
                     }
                 )
             finally:
@@ -131,7 +130,5 @@ def make_workflow_rocrate(workflow_path, wf_type, include_files=[],
     # add extra files
     for file_entry in include_files:
         wf_crate.add_file(file_entry)
-
-    wf_crate._add_context_entity(programming_language_entity)
 
     return wf_crate

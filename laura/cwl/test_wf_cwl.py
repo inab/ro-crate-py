@@ -1,30 +1,25 @@
 from rocrate import rocrate_api
 
-option = int(input("Enter type workflow option:\n [1]: CWL \n [2]: Galaxy\n"))
+out_path = "/Users/laurarodrigueznavas/BSC/ro-crate-py/laura/cwl"
+out_path_with_filename = out_path + "/test_wf_cwl.zip"
 
-global wf, files_list, wf_type
+global wf, files_list
+
+option = int(input("Enter type workflow option:\n [1]: Basic \n"))
 
 if option == 1:
-    wf = "https://raw.githubusercontent.com/inab/vre_cwl_executor/master/tests/trans_decoder/data/workflows/TransDecoder-v5-wf-2steps.cwl"
-    files_list = ["/Users/laurarodrigueznavas/BSC/ro-crate-py/test/test-data/read_crate/test_file_galaxy.txt"]
-    wf_type = "CWL"
+    wf = "https://raw.githubusercontent.com/inab/vre_cwl_executor/master/tests/basic/data/workflows/basic_example.cwl"
+    files_list = [
+        '/Users/laurarodrigueznavas/BSC/vre_cwl_executor/tests/basic/NA12878.bam',
+        '/Users/laurarodrigueznavas/BSC/vre_cwl_executor/tests/basic/hg38.fa'
+    ]
 
-elif option == 2:
-    wf = "/Users/laurarodrigueznavas/BSC/ro-crate-py/test/test-data/read_crate/test_wf_galaxy.ga"
-    files_list = ["/Users/laurarodrigueznavas/BSC/ro-crate-py/test/test-data/read_crate/test_file_galaxy.txt"]
-    wf_type = "Galaxy"
+# Create RO-Crate
+crate = rocrate_api.make_workflow_rocrate(workflow_path=wf, wf_type="CWL", include_files=files_list)
 
-# Create base package
-crate = rocrate_api.make_workflow_rocrate(workflow_path=wf, wf_type=wf_type, include_files=files_list)
-
-# adding a Dataset
-sample_dir = '/Users/laurarodrigueznavas/BSC/vre_cwl_executor/tests/trans_decoder/data'
-dataset_entity = crate.add_directory(sample_dir, 'dataset')
-
-# Add authors info
-laura_metadata = {'name': 'Laura Rodriguez-Navas'}
-crate.add_person('#laura', laura_metadata)
-
-# write crate to local path
-out_path = "/Users/laurarodrigueznavas/BSC/ro-crate-py/laura"
+# Write RO-Crate
 crate.write_crate(out_path)
+
+# Compress RO-Crate
+# crate.write_zip(out_path)
+# crate.write_zip(out_path_with_filename)

@@ -18,10 +18,6 @@ import os
 import pathlib
 import shutil
 import urllib
-import ssl
-
-# only for OSX
-ssl._create_default_https_context = ssl._create_unverified_context
 
 from io import IOBase
 from shutil import copy

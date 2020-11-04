@@ -1,0 +1,134 @@
+{
+    "@context": "https://w3id.org/ro/crate/1.0/context",
+    "@graph": [
+        {
+            "@id": "ro-crate-metadata.jsonld",
+            "@type": "CreativeWork",
+            "about": {
+                "@id": "./"
+            },
+            "conformsTo": {
+                "@id": "https://w3id.org/ro/crate/1.0"
+            }
+        },
+        {
+            "@id": "ro-crate-preview.html",
+            "@type": "CreativeWork",
+            "about": {
+                "@id": "./"
+            }
+        },
+        {
+            "@id": "./",
+            "@type": "Dataset",
+            "author": [
+                {
+                    "@id": "https://orcid.org/0000-0002-4806-5140"
+                }
+            ],
+            "creativeWorkStatus": "Stable",
+            "datePublished": "2020-10-22 13:03:07.371963",
+            "hasPart": [
+                {
+                    "@id": "nextflow.nf"
+                },
+                {
+                    "@id": "U5c_CCGTCC_L001_R1_001.fastq.gz"
+                },
+                {
+                    "@id": "U5c_CCGTCC_L001_R2_001.fastq.gz"
+                },
+                {
+                    "@id": "hs37d5.fa.gz"
+                },
+                {
+                    "@id": "Mills_and_1000G_gold_standard.indels.b37.vcf.gz"
+                },
+                {
+                    "@id": "dbsnp_138.b37.vcf.gz"
+                }
+            ],
+            "identifier": "https://dev.workflowhub.eu/workflows/126?version=1",
+            "isBasedOn": "https://github.com/inab/Wetlab2Variations/blob/eosc-life/nextflow/nextflow.nf",
+            "license": "Apache-2.0",
+            "mainEntity": {
+                "@id": "nextflow.nf"
+            },
+            "provider": [
+                {
+                    "@id": "#project-4"
+                }
+            ],
+            "sdDatePublished": "2020-10-22 11:44:49 +0100",
+            "sdPublisher": {
+                "@id": "https://orcid.org/0000-0003-4929-1219"
+            },
+            "url": "https://dev.workflowhub.eu/workflows/126/ro_crate?version=1"
+        },
+        {
+            "@id": "nextflow.nf",
+            "@type": "File"
+        },
+        {
+            "@id": "U5c_CCGTCC_L001_R1_001.fastq.gz",
+            "@type": "File",
+            "url": "ftp://ftp-trace.ncbi.nih.gov/giab/ftp/data/NA12878/NIST_NA12878_HG001_HiSeq_300x/140407_D00360_0017_BH947YADXX/Project_RM8398/Sample_U5c/U5c_CCGTCC_L001_R1_001.fastq.gz"
+        },
+        {
+            "@id": "U5c_CCGTCC_L001_R2_001.fastq.gz",
+            "@type": "File",
+            "url": "ftp://ftp-trace.ncbi.nih.gov/giab/ftp/data/NA12878/NIST_NA12878_HG001_HiSeq_300x/140407_D00360_0017_BH947YADXX/Project_RM8398/Sample_U5c/U5c_CCGTCC_L001_R2_001.fastq.gz"
+        },
+        {
+            "@id": "hs37d5.fa.gz",
+            "@type": "File",
+            "url": "ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5.fa.gz"
+        },
+        {
+            "@id": "Mills_and_1000G_gold_standard.indels.b37.vcf.gz",
+            "@type": "File",
+            "url": "ftp://gsapubftp-anonymous:@ftp.broadinstitute.org/bundle/b37/Mills_and_1000G_gold_standard.indels.b37.vcf.gz"
+        },
+        {
+            "@id": "dbsnp_138.b37.vcf.gz",
+            "@type": "File",
+            "url": "ftp://gsapubftp-anonymous:@ftp.broadinstitute.org/bundle/b37/dbsnp_138.b37.vcf.gz"
+        },
+        {
+            "@id": "#ro-crate-preview.html",
+            "@type": "CreativeWork",
+            "about": {
+                "@id": "./"
+            }
+        },
+        {
+            "@id": "#nextflow",
+            "@type": "ComputerLanguage",
+            "identifier": {
+                "@id": "https://www.nextflow.io/"
+            },
+            "name": "Nextflow",
+            "url": {
+                "@id": "https://www.nextflow.io/"
+            }
+        },
+        {
+            "@id": "https://orcid.org/0000-0002-4806-5140",
+            "@type": "Person",
+            "identifier": "https://orcid.org/0000-0002-4806-5140",
+            "name": "Jos\u00e9 M\u00aa Fern\u00e1ndez"
+        },
+        {
+            "@id": "#project-4",
+            "@type": "Organization",
+            "identifier": "https://dev.workflowhub.eu/projects/4",
+            "name": "Demonstrator #7"
+        },
+        {
+            "@id": "https://orcid.org/0000-0003-4929-1219",
+            "@type": "Person",
+            "identifier": "https://orcid.org/0000-0003-4929-1219",
+            "name": "Laura Rodriguez-Navas"
+        }
+    ]
+}
