@@ -1,3 +1,20 @@
+# Copyright 2019-2020 The University of Manchester, UK
+# Copyright 2020 Vlaams Instituut voor Biotechnologie (VIB), BE
+# Copyright 2020 Barcelona Supercomputing Center (BSC), ES
+# Copyright 2020 Center for Advanced Studies, Research and Development in Sardinia (CRS4), IT
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import pytest
 import shutil
 from pathlib import Path
@@ -37,15 +54,15 @@ def test_crate_dir_loading(test_data_dir, tmpdir, helpers, load_preview, from_zi
     assert md_prop['conformsTo'] == {'@id': helpers.PROFILE}
     assert metadata.root is root
 
-    preview = crate.dereference('ro-crate-preview.html')
+    preview = crate.dereference(helpers.PREVIEW_FILE_NAME)
     assert preview == crate.preview
     preview_prop = preview.properties()
-    assert preview_prop['@id'] == 'ro-crate-preview.html'
+    assert preview_prop['@id'] == helpers.PREVIEW_FILE_NAME
     assert preview_prop['@id'] == preview.id
     assert preview_prop['@type'] == 'CreativeWork'
     assert preview_prop['about'] == {'@id': './'}
     if load_preview:
-        assert Path(preview.source).name == 'ro-crate-preview.html'
+        assert Path(preview.source).name == helpers.PREVIEW_FILE_NAME
     else:
         assert not preview.source
 
@@ -102,14 +119,19 @@ def test_crate_dir_loading(test_data_dir, tmpdir, helpers, load_preview, from_zi
     assert metadata_path.exists()
     legacy_metadata_path = out_path / helpers.LEGACY_METADATA_FILE_NAME
     assert not legacy_metadata_path.exists()
-
+    preview_path = out_path / helpers.PREVIEW_FILE_NAME
+    assert preview_path.exists()
     if load_preview:
-        preview_out_path = out_path / 'ro-crate-preview.html'
-        with open(preview_out_path, "rb") as f:
-            preview_out_content = f.read()
-        with open(preview.source, "rb") as f:
-            preview_content = f.read()
-        assert preview_out_content == preview_content
+        with open(preview.source) as f1, open(preview_path) as f2:
+            assert f1.read() == f2.read()
+
+    json_entities = helpers.read_json_entities(out_path)
+    data_entity_ids = [main_wf.id, abs_wf.id, test_file.id, remote_file.id]
+    helpers.check_crate(json_entities, data_entity_ids=data_entity_ids)
+
+    for e in main_wf, abs_wf, test_file:
+        with open(e.source) as f1, open(out_path / e.id) as f2:
+            assert f1.read() == f2.read()
 
 
 # according to the 1.1 spec, the legacy .jsonld file is still supported for

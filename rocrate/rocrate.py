@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 
 # Copyright 2019-2020 The University of Manchester, UK
+# Copyright 2020 Vlaams Instituut voor Biotechnologie (VIB), BE
+# Copyright 2020 Barcelona Supercomputing Center (BSC), ES
+# Copyright 2020 Center for Advanced Studies, Research and Development in Sardinia (CRS4), IT
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -150,8 +153,8 @@ class ROCrate():
         self.default_entities.append(self.root_dataset)
 
         # check if a preview is present
-        if 'ro-crate-preview.html' in entities.keys() and load_preview:
-            preview_source = os.path.join(source, 'ro-crate-preview.html')
+        if Preview.BASENAME in entities.keys() and load_preview:
+            preview_source = os.path.join(source, Preview.BASENAME)
             self.preview = Preview(self, preview_source)
             self.default_entities.append(self.preview)
 
@@ -199,7 +202,7 @@ class ROCrate():
 
         # the rest of the entities must be contextual entities
         prebuilt_entities = [
-            root_id, metadata_id, 'ro-crate-preview.html'
+            root_id, metadata_id, Preview.BASENAME
         ]
         for identifier, entity in entities.items():
             if identifier not in added_entities + prebuilt_entities:
