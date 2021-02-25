@@ -17,9 +17,13 @@
 
 import io
 import pytest
+import sys
+import uuid
 import zipfile
+from urllib.error import URLError
 
 from rocrate.model.dataset import Dataset
+from rocrate.model.person import Person
 from rocrate.rocrate import ROCrate
 
 
@@ -30,11 +34,12 @@ def test_file_writing(test_data_dir, tmpdir, helpers, to_zip):
     crate.name = crate_name
     creator_id = '001'
     creator_name = 'Lee Ritenour'
-    new_person = crate.add_person(creator_id, {'name': creator_name})
+    new_person = Person(crate, creator_id, {'name': creator_name})
+    crate.add(new_person)
     crate.creator = new_person
 
     sample_file_id = 'sample_file.txt'
-    sample_file2_id = 'subdir/sample_file2.csv'
+    sample_file2_id = 'a/b/sample_file2.csv'
     test_dir_id = 'test_add_dir/'
     data_entity_ids = [sample_file_id, sample_file2_id, test_dir_id]
     file_subdir_id = 'sample_file_subdir.txt'
@@ -94,7 +99,7 @@ def test_file_writing(test_data_dir, tmpdir, helpers, to_zip):
 def test_file_stringio(tmpdir, helpers):
     crate = ROCrate()
 
-    test_file_id = 'test_file.txt'
+    test_file_id = 'a/b/test_file.txt'
     file_content = 'This will be the content of the file'
     file_stringio = io.StringIO(file_content)
     file_returned = crate.add_file(file_stringio, test_file_id)
@@ -117,10 +122,11 @@ def test_remote_uri(tmpdir, helpers, fetch_remote):
     crate = ROCrate()
     url = ('https://raw.githubusercontent.com/ResearchObject/ro-crate-py/'
            'master/test/test-data/sample_file.txt')
-    file_returned = crate.add_file(source=url, fetch_remote=fetch_remote)
     if fetch_remote:
-        assert file_returned.id == 'sample_file.txt'
+        file_returned = crate.add_file(source=url, dest_path="a/b/sample_file.txt", fetch_remote=fetch_remote)
+        assert file_returned.id == 'a/b/sample_file.txt'
     else:
+        file_returned = crate.add_file(source=url, fetch_remote=fetch_remote)
         assert file_returned.id == url
 
     out_path = tmpdir / 'ro_crate_out'
@@ -129,6 +135,81 @@ def test_remote_uri(tmpdir, helpers, fetch_remote):
 
     metadata_path = out_path / helpers.METADATA_FILE_NAME
     assert metadata_path.exists()
-    file1 = out_path / 'sample_file.txt'
+    file1 = out_path / 'a/b/sample_file.txt'
     if fetch_remote:
         assert file1.exists()
+
+
+@pytest.mark.skipif(sys.platform.startswith("win"), reason="dir mode has no effect on Windows")
+def test_remote_uri_exceptions(tmpdir):
+    crate = ROCrate()
+    url = ('https://raw.githubusercontent.com/ResearchObject/ro-crate-py/'
+           f'master/test/test-data/{uuid.uuid4().hex}.foo')
+    crate.add_file(source=url, fetch_remote=True)
+    out_path = tmpdir / 'ro_crate_out_1'
+    out_path.mkdir()
+    with pytest.raises(URLError):
+        crate.write_crate(out_path)
+
+    crate = ROCrate()
+    url = ('https://raw.githubusercontent.com/ResearchObject/ro-crate-py/'
+           'master/test/test-data/sample_file.txt')
+    crate.add_file(source=url, dest_path="a/sample_file.txt", fetch_remote=True)
+    out_path = tmpdir / 'ro_crate_out_2'
+    out_path.mkdir()
+    (out_path / "a").mkdir(mode=0o444)
+    with pytest.raises(PermissionError):
+        crate.write_crate(out_path)
+
+
+@pytest.mark.parametrize("fetch_remote,validate_url", [(False, False), (False, True), (True, False), (True, True)])
+def test_missing_source(test_data_dir, fetch_remote, validate_url):
+    crate = ROCrate()
+    path = test_data_dir / uuid.uuid4().hex
+    with pytest.raises(ValueError):
+        crate.add_file(str(path), fetch_remote=fetch_remote, validate_url=validate_url)
+
+    with pytest.raises(ValueError):
+        crate.add_file(str(path), path.name, fetch_remote=fetch_remote, validate_url=validate_url)
+
+
+@pytest.mark.parametrize("fetch_remote,validate_url", [(False, False), (False, True), (True, False), (True, True)])
+def test_stringio_no_dest(test_data_dir, fetch_remote, validate_url):
+    crate = ROCrate()
+    with pytest.raises(ValueError):
+        crate.add_file(io.StringIO("foo"))
+
+
+@pytest.mark.parametrize("fetch_remote,validate_url", [(False, False), (False, True), (True, False), (True, True)])
+def test_no_source_no_dest(test_data_dir, fetch_remote, validate_url):
+    crate = ROCrate()
+    with pytest.raises(ValueError):
+        crate.add_file()
+
+
+def test_dataset(test_data_dir, tmpdir):
+    crate = ROCrate()
+    path = test_data_dir / "a" / "b"
+    d1 = crate.add_dataset(str(path))
+    assert crate.dereference("b") is d1
+    d2 = crate.add_dataset(str(path), "a/b")
+    assert crate.dereference("a/b") is d2
+
+    out_path = tmpdir / 'ro_crate_out'
+    out_path.mkdir()
+    crate.write_crate(out_path)
+
+    assert (out_path / "b").is_dir()
+    assert (out_path / "a" / "b").is_dir()
+
+
+def test_no_parts(tmpdir, helpers):
+    crate = ROCrate()
+
+    out_path = tmpdir / 'ro_crate_out'
+    out_path.mkdir()
+    crate.write_crate(out_path)
+
+    json_entities = helpers.read_json_entities(out_path)
+    helpers.check_crate(json_entities)
+    assert "hasPart" not in json_entities["./"]

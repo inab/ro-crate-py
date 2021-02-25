@@ -18,41 +18,45 @@
 # limitations under the License.
 
 import os
-import pathlib
+from pathlib import Path
 import shutil
 import urllib
 
 from io import IOBase
 from shutil import copy
 from urllib.error import HTTPError
-from urllib.parse import urlparse
 
 from .data_entity import DataEntity
+from ..utils import is_url
 
 
 class File(DataEntity):
 
     def __init__(self, crate, source=None, dest_path=None, fetch_remote=False,
-                 validate_url=True, properties={}):
-        # process source
+                 validate_url=True, properties=None):
+        if properties is None:
+            properties = {}
         self.fetch_remote = fetch_remote
         self.source = source
+        is_local = is_remote = False
+        if isinstance(source, (str, Path)):
+            is_local = os.path.isfile(str(source))
+            is_remote = is_url(str(source))
+            if not is_local and not is_remote:
+                raise ValueError(f"'{source}' is not a path to a local file or a valid remote URI")
+        elif dest_path is None:
+            raise ValueError("dest_path must be provided if source is not a path or URI")
         if dest_path:
             # the entity is refrencing a path relative to the ro-crate root
-            identifier = dest_path  # relative path?
+            identifier = Path(dest_path).as_posix()  # relative path?
         else:
             # if there is no dest_path there must be a URI/local path as source
-            if os.path.isfile(source):
+            if is_local:
                 # local source -> becomes local reference = reference relative
                 # to ro-crate root
                 identifier = os.path.basename(source)
             else:
                 # entity is refering an external object (absolute URI)
-                # first chec that it is a valid remote URI
-                url = urlparse(source)
-                if not all([url.scheme, url.netloc, url.path]):
-                    raise RuntimeError("Source is not a path to a local file"
-                                       " or a valid remote URI")
                 if validate_url:
 
                     # specification says remote URI should always be
@@ -81,8 +85,6 @@ class File(DataEntity):
                     identifier = os.path.basename(source)
                 else:
                     identifier = source
-                if not properties:
-                    properties = {}
                 # set url to the source. When creating through workflowhub
                 # this is auto set to URL Workflow Hub page
                 properties.update({'url': source})
@@ -96,18 +98,16 @@ class File(DataEntity):
         return val
 
     def write(self, base_path):
-        out_file_path = os.path.join(base_path, self.id)
-        out_dir = pathlib.Path(os.path.dirname(out_file_path))
+        base_path = Path(base_path)
+        out_file_path = base_path / self.id
         # check if its local or remote URI
         if isinstance(self.source, IOBase):
-            if not out_dir.exists():
-                os.mkdir(out_dir)
+            out_file_path.parent.mkdir(parents=True, exist_ok=True)
             with open(out_file_path, 'w') as out_file:
                 out_file.write(self.source.getvalue())
         else:
             if os.path.isfile(self.source):
-                if not out_dir.exists():
-                    os.mkdir(out_dir)
+                out_file_path.parent.mkdir(parents=True, exist_ok=True)
                 copy(self.source, out_file_path)
             else:
                 if self.fetch_remote:
@@ -119,12 +119,9 @@ class File(DataEntity):
                     #   self._jsonld['contentSize']
                     # this would help check if the dataset to be retrieved is
                     # in fact what was registered in the first place.
-                    try:
-                        with urllib.request.urlopen(self.source) as response, \
-                             open(out_file_path, 'wb') as out_file:
-                            shutil.copyfileobj(response, out_file)
-                    except Exception:  # requests.ConnectionError as exception:
-                        print("URI does not exists or can't be accessed")
+                    out_file_path.parent.mkdir(parents=True, exist_ok=True)
+                    with urllib.request.urlopen(self.source) as response, open(out_file_path, 'wb') as out_file:
+                        shutil.copyfileobj(response, out_file)
 
     def write_zip(self, zip_out):
         zip_out.write(self.source, self.id)

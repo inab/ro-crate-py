@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Copyright 2019-2020 The University of Manchester, UK
 # Copyright 2020 Vlaams Instituut voor Biotechnologie (VIB), BE
 # Copyright 2020 Barcelona Supercomputing Center (BSC), ES
@@ -17,29 +15,41 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
-
-from .dataset import Dataset
+from .contextentity import ContextEntity
 
 
-class RootDataset(Dataset):
-
-    def __init__(self, crate, properties=None):
-        default_properties = {
-            'datePublished': datetime.datetime.now().isoformat()
-        }
-        if properties:
-            default_properties.update(properties)
-        super(RootDataset, self).__init__(crate, None, './',
-                                          default_properties)
-
-    def format_id(self, identifier):
-        return './'
+class TestSuite(ContextEntity):
 
     def _empty(self):
-        # Hard-coded bootstrap for now
-        val = {
-            "@id": "./",
-            "@type": "Dataset",
+        return {
+            "@id": self.id,
+            "@type": 'TestSuite'
         }
-        return val
+
+    @property
+    def _default_type(self):
+        return "TestSuite"
+
+    @property
+    def name(self):
+        return self["name"]
+
+    @name.setter
+    def name(self, name):
+        self["name"] = name
+
+    @property
+    def instance(self):
+        return self["instance"]
+
+    @instance.setter
+    def instance(self, instance):
+        self["instance"] = instance
+
+    @property
+    def definition(self):
+        return self["definition"]
+
+    @definition.setter
+    def definition(self, definition):
+        self["definition"] = definition

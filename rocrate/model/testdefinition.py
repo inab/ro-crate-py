@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Copyright 2019-2020 The University of Manchester, UK
 # Copyright 2020 Vlaams Instituut voor Biotechnologie (VIB), BE
 # Copyright 2020 Barcelona Supercomputing Center (BSC), ES
@@ -17,26 +15,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
 from .file import File
 
 
-class Workflow(File):
-    """\
-    A scientific workflow that was used (or can be used) to analyze or
-    generate files in the RO-Crate.
-    """
-    TYPES = ["File", "SoftwareSourceCode", "ComputationalWorkflow"]
+class TestDefinition(File):
 
     def _empty(self):
         return {
             "@id": self.id,
-            "@type": self.TYPES,
-            "name": os.path.splitext(self.id)[0],
+            "@type": ['File', 'TestDefinition']
         }
 
+    @property
+    def _default_type(self):
+        return "TestDefinition"
 
-class LegacyWorkflow(Workflow):
+    @property
+    def engineVersion(self):
+        return self["engineVersion"]
 
-    TYPES = ["File", "SoftwareSourceCode", "Workflow"]
+    @engineVersion.setter
+    def engineVersion(self, engineVersion):
+        self["engineVersion"] = engineVersion
+
+    @property
+    def conformsTo(self):
+        return self["conformsTo"]
+
+    @conformsTo.setter
+    def conformsTo(self, conformsTo):
+        self["conformsTo"] = conformsTo
+
+    engine = conformsTo

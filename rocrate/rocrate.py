@@ -28,44 +28,45 @@ import shutil
 import tempfile
 
 from pathlib import Path
+from urllib.parse import urljoin
 
 from .model import contextentity
 from .model.root_dataset import RootDataset
 from .model.file import File
-from .model.person import Person
 from .model.dataset import Dataset
 from .model.metadata import Metadata, LegacyMetadata
 from .model.preview import Preview
+from .model.testdefinition import TestDefinition
+from .model.computationalworkflow import ComputationalWorkflow, galaxy_to_abstract_cwl
+from .model.computerlanguage import ComputerLanguage, get_lang
+from .model.testinstance import TestInstance
+from .model.testservice import TestService, get_service
+from .model.softwareapplication import SoftwareApplication, get_app, PLANEMO_DEFAULT_VERSION
+from .model.testsuite import TestSuite
 
-
-from arcp import generate
-
-
-TEST_METADATA_BASENAME = "test-metadata.json"
+from .utils import is_url
 
 
 class ROCrate():
 
-    def __init__(self, source_path=None, load_preview=False):
+    def __init__(self, source_path=None, load_preview=False, init=False):
+        self.__entity_map = {}
         self.default_entities = []
         self.data_entities = []
         self.contextual_entities = []
         # TODO: add this as @base in the context? At least when loading
         # from zip
         self.uuid = uuid.uuid4()
+        self.arcp_base_uri = f"arcp://uuid,{self.uuid}/"
 
         # TODO: default_properties must include name, description,
         # datePublished, license
-        if not source_path or not load_preview:
-            # create preview entity and add it to default_entities
-            self.preview = Preview(self)
-            self.default_entities.append(self.preview)
         if not source_path:
             # create a new ro-crate
-            self.root_dataset = RootDataset(self)
-            self.default_entities.append(self.root_dataset)
-            self.metadata = Metadata(self)
-            self.default_entities.append(self.metadata)
+            self.add(RootDataset(self), Metadata(self), Preview(self))
+        elif init:
+            # initialize an ro-crate from a directory tree
+            self.__init_from_tree(source_path, load_preview=load_preview)
         else:
             # load an existing ro-crate
             if zipfile.is_zipfile(source_path):
@@ -82,11 +83,31 @@ class ROCrate():
             if not os.path.isfile(metadata_path):
                 raise ValueError('The directory is not a valid RO-crate, '
                                  f'missing {Metadata.BASENAME}')
-            self.metadata = MetadataClass(self)
-            self.default_entities.append(self.metadata)
+            self.add(MetadataClass(self))
             entities = self.entities_from_metadata(metadata_path)
             self.build_crate(entities, source_path, load_preview)
             # TODO: load root dataset properties
+
+    def __init_from_tree(self, top_dir, load_preview=False):
+        top_dir = Path(top_dir)
+        if not top_dir.is_dir():
+            raise ValueError(f"{top_dir} is not a valid directory path")
+        self.add(RootDataset(self), Metadata(self))
+        if not load_preview:
+            self.add(Preview(self))
+        for root, dirs, files in os.walk(top_dir):
+            root = Path(root)
+            for name in dirs:
+                source = root / name
+                self.add_dataset(source, source.relative_to(top_dir))
+            for name in files:
+                source = root / name
+                if source == top_dir / Metadata.BASENAME or source == top_dir / LegacyMetadata.BASENAME:
+                    continue
+                if source != top_dir / Preview.BASENAME:
+                    self.add_file(source, source.relative_to(top_dir))
+                elif load_preview:
+                    self.add(Preview(self, source))
 
     def entities_from_metadata(self, metadata_path):
         # Creates a dictionary {id: entity} from the metadata file
@@ -137,26 +158,29 @@ class ROCrate():
         if root and "Dataset" in root.get("@type", []):
             return (None, "./")
         # Uh oh..
-        raise KeyError("Can't find Root Data Entity in RO-Crate, see https://www.researchobject.org/ro-crate/1.1/root-data-entity.html")
+        raise KeyError(
+            "Can't find Root Data Entity in RO-Crate, "
+            "see https://www.researchobject.org/ro-crate/1.1/root-data-entity.html"
+        )
 
     def build_crate(self, entities, source, load_preview):
         # add data and contextual entities to the crate
         (metadata_id, root_id) = self.find_root_entity_id(entities)
         root_entity = entities[root_id]
-        root_entity_parts = root_entity['hasPart']
+        root_entity_parts = root_entity.get('hasPart', [])
 
         # remove hasPart and id from root_entity and add the rest of the
         # properties to the build
         root_entity.pop('@id', None)
         root_entity.pop('hasPart', None)
-        self.root_dataset = RootDataset(self, root_entity)
-        self.default_entities.append(self.root_dataset)
+        self.add(RootDataset(self, root_entity))
 
         # check if a preview is present
         if Preview.BASENAME in entities.keys() and load_preview:
             preview_source = os.path.join(source, Preview.BASENAME)
-            self.preview = Preview(self, preview_source)
-            self.default_entities.append(self.preview)
+            self.add(Preview(self, preview_source))
+        else:
+            self.add(Preview(self))
 
         added_entities = []
         # iterate over data entities
@@ -178,16 +202,18 @@ class ROCrate():
                             if isinstance(entity['@type'], list)
                             else [entity['@type']])
             if 'File' in entity_types:
+                # temporary workaround, should be handled in the general case
+                cls = TestDefinition if "TestDefinition" in entity_types else File
                 file_path = os.path.join(source, entity['@id'])
                 identifier = entity.pop('@id', None)
                 if os.path.exists(file_path):
                     # referencing a file path relative to crate-root
-                    instance = File(self, file_path, identifier, properties=entity)
+                    instance = cls(self, file_path, identifier, properties=entity)
                 else:
                     # check if it is a valid absolute URI
                     try:
                         requests.get(identifier)
-                        instance = File(self, identifier, properties=entity)
+                        instance = cls(self, identifier, properties=entity)
                     except requests.ConnectionError:
                         print("Source is not a valid URI")
             if 'Dataset' in entity_types:
@@ -197,7 +223,7 @@ class ROCrate():
                     instance = Dataset(self, dir_path, entity['@id'], props)
                 else:
                     raise Exception('Directory not found')
-            self._add_data_entity(instance)
+            self.add(instance)
             added_entities.append(data_entity_id)
 
         # the rest of the entities must be contextual entities
@@ -224,7 +250,7 @@ class ROCrate():
                     instance = contextentity.ContextEntity(
                         self, identifier, entity
                     )
-                self._add_context_entity(instance)
+                self.add(instance)
 
     # TODO: add contextual entities
     # def add_contact_point(id, properties = {})
@@ -316,6 +342,14 @@ class ROCrate():
         self.root_dataset['CreativeWorkStatus'] = value
 
     @property
+    def mainEntity(self):
+        return self.root_dataset['mainEntity']
+
+    @mainEntity.setter
+    def mainEntity(self, value):
+        self.root_dataset['mainEntity'] = value
+
+    @property
     def test_dir(self):
         rval = self.dereference("test")
         if rval and "Dataset" in rval.type:
@@ -329,79 +363,63 @@ class ROCrate():
             return rval
         return None
 
-    @property
-    def test_metadata_path(self):
-        if self.test_dir is None:
-            return None
-        return Path(self.test_dir.filepath()) / TEST_METADATA_BASENAME
-
-    def resolve_id(self, relative_id):
-        return generate.arcp_random(relative_id.strip('./'), uuid=self.uuid)
+    def resolve_id(self, id_):
+        if not is_url(id_):
+            id_ = urljoin(self.arcp_base_uri, id_)  # also does path normalization
+        return id_.rstrip("/")
 
     def get_entities(self):
-        return (self.default_entities + self.data_entities +
-                self.contextual_entities)
-
-    def set_main_entity(self, main_entity):
-        self.root_dataset['mainEntity'] = main_entity
+        return self.__entity_map.values()
 
     def _get_root_jsonld(self):
         self.root_dataset.properties()
 
     def dereference(self, entity_id):
         canonical_id = self.resolve_id(entity_id)
-        for entity in self.get_entities():
-            if canonical_id == entity.canonical_id():
-                return entity
-        return None
+        return self.__entity_map.get(canonical_id, None)
 
-    # source: file object or path (str)
-    def add_file(self, source, crate_path=None, fetch_remote=False,
-                 properties={}, **kwargs):
-        props = dict(properties)
-        props.update(kwargs)
-        file_entity = File(self, source=source, dest_path=crate_path, fetch_remote=fetch_remote, properties=props)
-        self._add_data_entity(file_entity)
-        return file_entity
+    def add_file(self, source=None, dest_path=None, fetch_remote=False,
+                 validate_url=True, properties=None):
+        return self.add(File(self, source=source, dest_path=dest_path, fetch_remote=fetch_remote,
+                             validate_url=validate_url, properties=properties))
 
-    def remove_file(self, file_id):
-        # if file in data_entities:
-        self._remove_data_entity(file_id)
+    def add_dataset(self, source=None, dest_path=None, properties=None):
+        return self.add(Dataset(self, source=source, dest_path=dest_path, properties=properties))
 
-    def add_directory(self, source, crate_path=None, properties={}, **kwargs):
-        props = dict(properties)
-        props.update(kwargs)
-        dataset_entity = Dataset(self, source, crate_path, properties)
-        self._add_data_entity(dataset_entity)
-        return dataset_entity
+    add_directory = add_dataset
 
-    def remove_directory(self, dir_id):
-        # if file in data_entities:
-        self._remove_data_entity(dir_id)
+    def add(self, *entities):
+        """\
+        Add one or more entities to this RO-Crate.
 
-    def _add_data_entity(self, data_entity):
-        self._remove_data_entity(data_entity)
-        self.data_entities.append(data_entity)
+        If an entity with the same (canonical) id is already present in the
+        crate, it will be replaced (as in Python dictionaries).
 
-    def _remove_data_entity(self, data_entity):
-        if data_entity in self.data_entities:
-            self.data_entities.remove(data_entity)
-
-    ################################
-    #     Contextual entities      #
-    ################################
-
-    def _add_context_entity(self, entity):
-        if entity in self.contextual_entities:
-            self.contextual_entities.remove(entity)
-        self.contextual_entities.append(entity)
-
-    def add_person(self, identifier=None, properties={}, **kwargs):
-        props = dict(properties)
-        props.update(kwargs)
-        new_person = Person(self, identifier, props)
-        self._add_context_entity(new_person)
-        return new_person
+        Note that, according to the specs, "The RO-Crate Metadata JSON @graph
+        MUST NOT list multiple entities with the same @id; behaviour of
+        consumers of an RO-Crate encountering multiple entities with the same
+        @id is undefined". In practice, due to the replacement semantics, the
+        entity for a given id is the last one added to the crate with that id.
+        """
+        for e in entities:
+            key = e.canonical_id()
+            if isinstance(e, RootDataset):
+                self.root_dataset = e
+            if isinstance(e, (Metadata, LegacyMetadata)):
+                self.metadata = e
+            if isinstance(e, Preview):
+                self.preview = e
+            if isinstance(e, (RootDataset, Metadata, LegacyMetadata, Preview)):
+                self.default_entities.append(e)
+            elif hasattr(e, "write"):
+                self.data_entities.append(e)
+                if key not in self.__entity_map:
+                    self.root_dataset._jsonld.setdefault("hasPart", [])
+                    self.root_dataset["hasPart"] += [e]
+            else:
+                self.contextual_entities.append(e)
+            self.__entity_map[key] = e
+        return entities[0] if len(entities) == 1 else entities
 
     # TODO
     # def fetch_all(self):
@@ -427,3 +445,96 @@ class ROCrate():
             writable_entity.write_zip(zf)
         zf.close()
         return zf.filename
+
+    def add_workflow(
+            self, source=None, dest_path=None, fetch_remote=False, validate_url=True, properties=None,
+            main=False, lang="cwl", lang_version=None, gen_cwl=False
+    ):
+        workflow = self.add(ComputationalWorkflow(
+            self, source=source, dest_path=dest_path, fetch_remote=fetch_remote,
+            validate_url=validate_url, properties=properties
+        ))
+        if isinstance(lang, ComputerLanguage):
+            assert lang.crate is self
+        else:
+            kwargs = {"version": lang_version} if lang_version else {}
+            lang = get_lang(self, lang, **kwargs)
+            self.add(lang)
+        workflow.lang = lang
+        if main:
+            self.mainEntity = workflow
+        if gen_cwl and lang.id != "#cwl":
+            if lang.id != "#galaxy":
+                raise ValueError(f"conversion from {lang.name} to abstract CWL not supported")
+            cwl_source = galaxy_to_abstract_cwl(source)
+            cwl_dest_path = Path(source).with_suffix(".cwl").name
+            cwl_workflow = self.add_workflow(
+                source=cwl_source, dest_path=cwl_dest_path, fetch_remote=fetch_remote, properties=properties,
+                main=False, lang="cwl", gen_cwl=False
+            )
+            workflow.subjectOf = cwl_workflow
+        return workflow
+
+    def add_test_suite(self, identifier=None, name=None, main_entity=None):
+        if not main_entity:
+            main_entity = self.mainEntity
+            if not main_entity:
+                raise ValueError("crate does not have a main entity")
+        suite = self.add(TestSuite(self, identifier))
+        suite.name = name or suite.id.lstrip("#")
+        suite["mainEntity"] = main_entity
+        # note that a test dir is required (possibly empty) even if the suite
+        # is going to have only instances (no definitions)
+        test_dir = self.test_dir or self.add_directory(dest_path="test")
+        suite_set = set(test_dir["about"] or [])
+        suite_set.add(suite)
+        test_dir["about"] = list(suite_set)
+        return suite
+
+    def add_test_instance(self, suite, url, resource="", service="jenkins", identifier=None, name=None):
+        suite = self.__validate_suite(suite)
+        instance = self.add(TestInstance(self, identifier))
+        instance.url = url
+        instance.resource = resource
+        if isinstance(service, TestService):
+            assert service.crate is self
+        else:
+            service = get_service(self, service)
+            self.add(service)
+        instance.service = service
+        instance.name = name or instance.id.lstrip("#")
+        instance_set = set(suite.instance or [])
+        instance_set.add(instance)
+        suite.instance = list(instance_set)
+        return instance
+
+    def add_test_definition(
+            self, suite, source=None, dest_path=None, fetch_remote=False, validate_url=True, properties=None,
+            engine="planemo", engine_version=None
+    ):
+        if engine_version is None:
+            # FIXME: this should be engine-specific
+            engine_version = PLANEMO_DEFAULT_VERSION
+        suite = self.__validate_suite(suite)
+        definition = self.add(
+            TestDefinition(self, source=source, dest_path=dest_path, fetch_remote=fetch_remote,
+                           validate_url=validate_url, properties=properties)
+        )
+        if isinstance(engine, SoftwareApplication):
+            assert engine.crate is self
+        else:
+            engine = get_app(self, engine)
+            self.add(engine)
+        definition.engine = engine
+        definition.engineVersion = engine_version
+        suite.definition = definition
+        return definition
+
+    def __validate_suite(self, suite):
+        if isinstance(suite, TestSuite):
+            assert suite.crate is self
+        else:
+            suite = self.dereference(suite)
+            if suite is None:
+                raise ValueError("suite not found")
+        return suite

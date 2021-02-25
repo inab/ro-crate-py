@@ -17,16 +17,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import atexit
-import os
-import tempfile
-from contextlib import redirect_stdout
 from pathlib import Path
 
 import rocrate.rocrate as roc
-from rocrate.model import entity
-from rocrate.model.workflow import Workflow
-from galaxy2cwl import get_cwl_interface
 
 
 def make_workflow_rocrate(workflow_path, wf_type, include_files=[],
@@ -66,38 +59,11 @@ def make_workflow_rocrate(workflow_path, wf_type, include_files=[],
     # If a CWL/CWLAbstract file is provided, this is generated using cwltool
 
     wf_crate = roc.ROCrate()
-    wf_path = Path(workflow_path)
-    # should this be added in a special path within the crate?
-    wf_file = Workflow(wf_crate, str(wf_path), wf_path.name)
-    wf_crate._add_data_entity(wf_file)
-    wf_crate.set_main_entity(wf_file)
-    if wf_type == 'CWL':
-        programming_language_entity = entity.Entity(
-            wf_crate,
-            'https://www.commonwl.org/v1.1/',
-            properties={
-                "@type": ["ComputerLanguage", "SoftwareApplication"],
-                'name': 'CWL',
-                'url': 'https://www.commonwl.org/v1.1/',
-                'version': '1.1'
-            }
-        )
-    if wf_type == 'Galaxy':
-        if not cwl:
-            # create cwl_abstract
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".cwl") as f:
-                with redirect_stdout(f):
-                    get_cwl_interface.main(['1', workflow_path])
-            atexit.register(os.unlink, f.name)
-            abstract_wf_id = wf_path.with_suffix(".cwl").name
-            abstract_wf_file = Workflow(wf_crate, f.name, abstract_wf_id)
-            wf_crate._add_data_entity(abstract_wf_file)
-            wf_file["subjectOf"] = abstract_wf_file
-        programming_language_entity = entity.Entity(
-            wf_crate, 'https://galaxyproject.org/'
-        )
-    if programming_language_entity:
-        wf_file['programmingLanguage'] = programming_language_entity
+    workflow_path = Path(workflow_path)
+    wf_file = wf_crate.add_workflow(
+        str(workflow_path), workflow_path.name, fetch_remote=fetch_remote,
+        main=True, lang=wf_type, gen_cwl=(cwl is None)
+    )
 
     # if the source is a remote URL then add https://schema.org/codeRepository
     # property to it this can be checked by checking if the source is a URL

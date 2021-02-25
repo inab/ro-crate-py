@@ -59,6 +59,8 @@ python setup.py install
 In general you will want to start by instantiating the `ROCrate` object. This can be a new one: 
 
 ```python
+from rocrate.rocrate import ROCrate
+
 crate = ROCrate() 
 ```
 
@@ -110,13 +112,15 @@ dataset_entity = crate.add_directory(sample_dir, 'relative/rocrate/path')
 [Contextual entities](https://www.researchobject.org/ro-crate/1.1/contextual-entities.html) are used in an RO-Crate to adequately describe a Data Entity. The following example shows how to add the person contextual entity to the RO-Crate root:
 
 ```python
+from rocrate.model.person import Person
+
 # Add authors info
-crate.add_person('#joe', {'name': 'Joe Bloggs'})
+crate.add(Person(crate, '#joe', {'name': 'Joe Bloggs'}))
 
 # wf_crate example
-publisher = wf_crate.add_person('001', {'name': 'Bert Verlinden'})
-
-creator = wf_crate.add_person('002', {'name': 'Lee Ritenour'})
+publisher = Person(crate, '001', {'name': 'Bert Verlinden'})
+creator = Person(crate, '002', {'name': 'Lee Ritenour'})
+wf_crate.add(publisher, creator)
 
 # These contextual entities can be assigned to other metadata properties:
 
