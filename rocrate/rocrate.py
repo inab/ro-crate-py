@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
-# Copyright 2019-2020 The University of Manchester, UK
-# Copyright 2020 Vlaams Instituut voor Biotechnologie (VIB), BE
-# Copyright 2020 Barcelona Supercomputing Center (BSC), ES
-# Copyright 2020 Center for Advanced Studies, Research and Development in Sardinia (CRS4), IT
+# Copyright 2019-2021 The University of Manchester, UK
+# Copyright 2020-2021 Vlaams Instituut voor Biotechnologie (VIB), BE
+# Copyright 2020-2021 Barcelona Supercomputing Center (BSC), ES
+# Copyright 2020-2021 Center for Advanced Studies, Research and Development in Sardinia (CRS4), IT
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ from .model import contextentity
 from .model.root_dataset import RootDataset
 from .model.file import File
 from .model.dataset import Dataset
-from .model.metadata import Metadata, LegacyMetadata
+from .model.metadata import Metadata, LegacyMetadata, TESTING_EXTRA_TERMS
 from .model.preview import Preview
 from .model.testdefinition import TestDefinition
 from .model.computationalworkflow import ComputationalWorkflow, galaxy_to_abstract_cwl
@@ -87,6 +87,8 @@ class ROCrate():
             entities = self.entities_from_metadata(metadata_path)
             self.build_crate(entities, source_path, load_preview)
             # TODO: load root dataset properties
+        # in the zip case, self.source_path is the extracted dir
+        self.source_path = source_path
 
     def __init_from_tree(self, top_dir, load_preview=False):
         top_dir = Path(top_dir)
@@ -427,10 +429,26 @@ class ROCrate():
 
     # write crate to local dir
     def write_crate(self, base_path):
-        Path(base_path).mkdir(parents=True, exist_ok=True)
+        base_path = Path(base_path)
+        base_path.mkdir(parents=True, exist_ok=True)
+        # copy unlisted files and directories
+        if self.source_path:
+            top = self.source_path
+            for root, dirs, files in os.walk(top):
+                root = Path(root)
+                for name in dirs:
+                    source = root / name
+                    dest = base_path / source.relative_to(top)
+                    dest.mkdir(parents=True, exist_ok=True)
+                for name in files:
+                    source = root / name
+                    rel = source.relative_to(top)
+                    if not self.dereference(str(rel)):
+                        dest = base_path / rel
+                        shutil.copyfile(source, dest)
         # write data entities
         for writable_entity in self.data_entities + self.default_entities:
-            writable_entity.write(base_path)
+            writable_entity.write(str(base_path))
 
     def write_zip(self, out_zip):
         if str(out_zip).endswith('.zip'):
@@ -441,6 +459,16 @@ class ROCrate():
             out_file_path, 'w', compression=zipfile.ZIP_DEFLATED,
             allowZip64=True
         )
+        # copy unlisted files and directories
+        if self.source_path:
+            top = self.source_path
+            for root, dirs, files in os.walk(top):
+                root = Path(root)
+                for name in files:
+                    source = root / name
+                    dest = source.relative_to(top)
+                    if not self.dereference(str(dest)):
+                        zf.write(str(source), str(dest))
         for writable_entity in self.data_entities + self.default_entities:
             writable_entity.write_zip(zf)
         zf.close()
@@ -489,6 +517,7 @@ class ROCrate():
         suite_set = set(test_dir["about"] or [])
         suite_set.add(suite)
         test_dir["about"] = list(suite_set)
+        self.metadata.extra_terms.update(TESTING_EXTRA_TERMS)
         return suite
 
     def add_test_instance(self, suite, url, resource="", service="jenkins", identifier=None, name=None):
@@ -506,6 +535,7 @@ class ROCrate():
         instance_set = set(suite.instance or [])
         instance_set.add(instance)
         suite.instance = list(instance_set)
+        self.metadata.extra_terms.update(TESTING_EXTRA_TERMS)
         return instance
 
     def add_test_definition(
@@ -528,6 +558,7 @@ class ROCrate():
         definition.engine = engine
         definition.engineVersion = engine_version
         suite.definition = definition
+        self.metadata.extra_terms.update(TESTING_EXTRA_TERMS)
         return definition
 
     def __validate_suite(self, suite):

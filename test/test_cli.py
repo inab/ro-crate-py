@@ -1,7 +1,7 @@
-# Copyright 2019-2020 The University of Manchester, UK
-# Copyright 2020 Vlaams Instituut voor Biotechnologie (VIB), BE
-# Copyright 2020 Barcelona Supercomputing Center (BSC), ES
-# Copyright 2020 Center for Advanced Studies, Research and Development in Sardinia (CRS4), IT
+# Copyright 2019-2021 The University of Manchester, UK
+# Copyright 2020-2021 Vlaams Instituut voor Biotechnologie (VIB), BE
+# Copyright 2020-2021 Barcelona Supercomputing Center (BSC), ES
+# Copyright 2020-2021 Center for Advanced Studies, Research and Development in Sardinia (CRS4), IT
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,10 +15,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import pytest
 from click.testing import CliRunner
 
 from rocrate.cli import cli
+from rocrate.model.metadata import TESTING_EXTRA_TERMS
 
 
 @pytest.mark.parametrize("cwd", [False, True])
@@ -111,3 +113,13 @@ def test_cli_add_test_metadata(test_data_dir, helpers, monkeypatch, cwd):
     json_entities = helpers.read_json_entities(crate_dir)
     assert def_id in json_entities
     assert set(json_entities[def_id]["@type"]) == {"File", "TestDefinition"}
+    # check extra terms
+    metadata_path = crate_dir / helpers.METADATA_FILE_NAME
+    with open(metadata_path, "rt") as f:
+        json_data = json.load(f)
+    assert "@context" in json_data
+    context = json_data["@context"]
+    assert isinstance(context, list)
+    assert len(context) > 1
+    extra_terms = context[1]
+    assert set(TESTING_EXTRA_TERMS.items()).issubset(extra_terms.items())
