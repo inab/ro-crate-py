@@ -108,7 +108,7 @@ class File(DataEntity):
         else:
             if os.path.isfile(self.source):
                 out_file_path.parent.mkdir(parents=True, exist_ok=True)
-                # copy(self.source, out_file_path)
+                copy(self.source, out_file_path)
             else:
                 if self.fetch_remote:
                     # Legacy version

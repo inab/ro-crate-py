@@ -450,6 +450,16 @@ class ROCrate():
         for writable_entity in self.data_entities + self.default_entities:
             writable_entity.write(str(base_path))
 
+    # write crate to local dir without copy input and output files
+    def writeCrate(self, base_path):
+        base_path = Path(base_path)
+        base_path.mkdir(parents=True, exist_ok=True)
+
+        # write data entities
+        for writable_entity in self.data_entities + self.default_entities:
+            if writable_entity['@type'] != "File":  # we do not take into account inputs and outputs
+                writable_entity.write(str(base_path))
+
     def write_zip(self, out_zip):
         if str(out_zip).endswith('.zip'):
             out_file_path = out_zip
@@ -471,6 +481,24 @@ class ROCrate():
                         zf.write(str(source), str(dest))
         for writable_entity in self.data_entities + self.default_entities:
             writable_entity.write_zip(zf)
+        zf.close()
+        return zf.filename
+
+    # write crate zip to local dir without copy input and output files
+    def writeZip(self, out_zip):
+        if str(out_zip).endswith('.zip'):
+            out_file_path = out_zip
+        else:
+            out_file_path = out_zip + '.zip'
+
+        zf = zipfile.ZipFile(
+            out_file_path, 'w', compression=zipfile.ZIP_DEFLATED,
+            allowZip64=True
+        )
+        for writable_entity in self.data_entities + self.default_entities:
+            if writable_entity['@type'] != "File":  # we do not take into account inputs and outputs
+                writable_entity.write_zip(zf)
+
         zf.close()
         return zf.filename
 
