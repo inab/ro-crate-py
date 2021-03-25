@@ -21,6 +21,8 @@ import os
 from pathlib import Path
 import shutil
 import urllib
+import magic
+
 
 from io import IOBase
 from shutil import copy
@@ -28,6 +30,8 @@ from urllib.error import HTTPError
 
 from .data_entity import DataEntity
 from ..utils import is_url
+
+mime = magic.Magic(mime=True)
 
 
 class File(DataEntity):
@@ -55,6 +59,12 @@ class File(DataEntity):
                 # local source -> becomes local reference = reference relative
                 # to ro-crate root
                 identifier = os.path.basename(source)
+                properties.update({
+                    'contentSize':
+                        os.path.getsize(source),
+                    'encodingFormat':
+                        mime.from_file(source)
+                })
             else:
                 # entity is refering an external object (absolute URI)
                 if validate_url:
