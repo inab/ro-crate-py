@@ -5,4 +5,4 @@ jinja2
 python-dateutil
 click
 pytest
-python-magic-bin
+python-magic-bin==0.4.14
