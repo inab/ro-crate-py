@@ -31,8 +31,6 @@ from urllib.error import HTTPError
 from .data_entity import DataEntity
 from ..utils import is_url
 
-mime = magic.Magic(mime=True)
-
 
 class File(DataEntity):
 
@@ -63,7 +61,7 @@ class File(DataEntity):
                     'contentSize':
                         os.path.getsize(source),
                     'encodingFormat':
-                        mime.from_file(source)
+                        magic.from_file(source, mime=True)
                 })
             else:
                 # entity is refering an external object (absolute URI)
