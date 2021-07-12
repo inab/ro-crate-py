@@ -31,6 +31,7 @@ from pathlib import Path
 from urllib.parse import urljoin
 
 from .model import contextentity
+from .model.entity import Entity
 from .model.root_dataset import RootDataset
 from .model.file import File
 from .model.dataset import Dataset
@@ -49,7 +50,7 @@ from .utils import is_url
 
 class ROCrate():
 
-    def __init__(self, source_path=None, load_preview=False, init=False):
+    def __init__(self, source_path=None, gen_preview=False, init=False):
         self.__entity_map = {}
         self.default_entities = []
         self.data_entities = []
@@ -58,15 +59,19 @@ class ROCrate():
         # from zip
         self.uuid = uuid.uuid4()
         self.arcp_base_uri = f"arcp://uuid,{self.uuid}/"
+        self.preview = None
+
+        if gen_preview:
+            self.add(Preview(self))
 
         # TODO: default_properties must include name, description,
         # datePublished, license
         if not source_path:
             # create a new ro-crate
-            self.add(RootDataset(self), Metadata(self), Preview(self))
+            self.add(RootDataset(self), Metadata(self))
         elif init:
             # initialize an ro-crate from a directory tree
-            self.__init_from_tree(source_path, load_preview=load_preview)
+            self.__init_from_tree(source_path, gen_preview=gen_preview)
         else:
             # load an existing ro-crate
             if zipfile.is_zipfile(source_path):
@@ -85,18 +90,16 @@ class ROCrate():
                                  f'missing {Metadata.BASENAME}')
             self.add(MetadataClass(self))
             entities = self.entities_from_metadata(metadata_path)
-            self.build_crate(entities, source_path, load_preview)
+            self.build_crate(entities, source_path, gen_preview)
             # TODO: load root dataset properties
         # in the zip case, self.source_path is the extracted dir
         self.source_path = source_path
 
-    def __init_from_tree(self, top_dir, load_preview=False):
+    def __init_from_tree(self, top_dir, gen_preview=False):
         top_dir = Path(top_dir)
         if not top_dir.is_dir():
             raise ValueError(f"{top_dir} is not a valid directory path")
         self.add(RootDataset(self), Metadata(self))
-        if not load_preview:
-            self.add(Preview(self))
         for root, dirs, files in os.walk(top_dir):
             root = Path(root)
             for name in dirs:
@@ -108,7 +111,7 @@ class ROCrate():
                     continue
                 if source != top_dir / Preview.BASENAME:
                     self.add_file(source, source.relative_to(top_dir))
-                elif load_preview:
+                elif not gen_preview:
                     self.add(Preview(self, source))
 
     def entities_from_metadata(self, metadata_path):
@@ -165,7 +168,7 @@ class ROCrate():
             "see https://www.researchobject.org/ro-crate/1.1/root-data-entity.html"
         )
 
-    def build_crate(self, entities, source, load_preview):
+    def build_crate(self, entities, source, gen_preview):
         # add data and contextual entities to the crate
         (metadata_id, root_id) = self.find_root_entity_id(entities)
         root_entity = entities[root_id]
@@ -177,12 +180,9 @@ class ROCrate():
         root_entity.pop('hasPart', None)
         self.add(RootDataset(self, root_entity))
 
-        # check if a preview is present
-        if Preview.BASENAME in entities.keys() and load_preview:
+        if not gen_preview and Preview.BASENAME in entities:
             preview_source = os.path.join(source, Preview.BASENAME)
             self.add(Preview(self, preview_source))
-        else:
-            self.add(Preview(self))
 
         added_entities = []
         # iterate over data entities
@@ -365,6 +365,15 @@ class ROCrate():
             return rval
         return None
 
+    @property
+    def test_suites(self):
+        mentions = [_ for _ in (self.root_dataset['mentions'] or []) if isinstance(_, TestSuite)]
+        about = [_ for _ in (self.root_dataset['about'] or []) if isinstance(_, TestSuite)]
+        if self.test_dir:
+            legacy_about = [_ for _ in (self.test_dir['about'] or []) if isinstance(_, TestSuite)]
+            about += legacy_about
+        return list(set(mentions + about))  # remove any duplicate refs
+
     def resolve_id(self, id_):
         if not is_url(id_):
             id_ = urljoin(self.arcp_base_uri, id_)  # also does path normalization
@@ -423,6 +432,41 @@ class ROCrate():
             self.__entity_map[key] = e
         return entities[0] if len(entities) == 1 else entities
 
+    def delete(self, *entities):
+        """\
+        Delete one or more entities from this RO-Crate.
+
+        Note that the crate could be left in an inconsistent state as a result
+        of calling this method, since neither entities pointing to the deleted
+        ones nor entities pointed to by the deleted ones are modified.
+        """
+        for e in entities:
+            if not isinstance(e, Entity):
+                e = self.dereference(e)
+            if not e:
+                continue
+            if e is self.root_dataset:
+                raise ValueError("cannot delete the root data entity")
+            if e is self.metadata:
+                raise ValueError("cannot delete the metadata entity")
+            if e is self.preview:
+                self.default_entities.remove(e)
+                self.preview = None
+            elif hasattr(e, "write"):
+                try:
+                    self.data_entities.remove(e)
+                except ValueError:
+                    pass
+                self.root_dataset["hasPart"] = [_ for _ in self.root_dataset["hasPart"] or [] if _ != e]
+                if not self.root_dataset["hasPart"]:
+                    del self.root_dataset._jsonld["hasPart"]
+            else:
+                try:
+                    self.contextual_entities.remove(e)
+                except ValueError:
+                    pass
+            self.__entity_map.pop(e.canonical_id(), None)
+
     # TODO
     # def fetch_all(self):
         # fetch all files defined in the crate
@@ -476,6 +520,8 @@ class ROCrate():
                 root = Path(root)
                 for name in files:
                     source = root / name
+                    if source.samefile(out_file_path):
+                        continue
                     dest = source.relative_to(top)
                     if not self.dereference(str(dest)):
                         zf.write(str(source), str(dest))
@@ -532,19 +578,18 @@ class ROCrate():
         return workflow
 
     def add_test_suite(self, identifier=None, name=None, main_entity=None):
+        test_ref_prop = "mentions"
         if not main_entity:
             main_entity = self.mainEntity
             if not main_entity:
-                raise ValueError("crate does not have a main entity")
+                test_ref_prop = "about"
         suite = self.add(TestSuite(self, identifier))
         suite.name = name or suite.id.lstrip("#")
-        suite["mainEntity"] = main_entity
-        # note that a test dir is required (possibly empty) even if the suite
-        # is going to have only instances (no definitions)
-        test_dir = self.test_dir or self.add_directory(dest_path="test")
-        suite_set = set(test_dir["about"] or [])
+        if main_entity:
+            suite["mainEntity"] = main_entity
+        suite_set = set(self.test_suites)
         suite_set.add(suite)
-        test_dir["about"] = list(suite_set)
+        self.root_dataset[test_ref_prop] = list(suite_set)
         self.metadata.extra_terms.update(TESTING_EXTRA_TERMS)
         return suite
 
