@@ -18,13 +18,10 @@
 # limitations under the License.
 
 import os
-from pathlib import Path
 import shutil
 import urllib
-import magic
-
-
 from io import IOBase
+from pathlib import Path
 from shutil import copy
 from urllib.error import HTTPError
 
@@ -59,9 +56,7 @@ class File(DataEntity):
                 identifier = os.path.basename(source)
                 properties.update({
                     'contentSize':
-                        os.path.getsize(source),
-                    'encodingFormat':
-                        magic.from_file(source, mime=True)
+                        os.path.getsize(source)
                 })
             else:
                 # entity is refering an external object (absolute URI)
